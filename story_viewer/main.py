@@ -1,12 +1,13 @@
 import time
-import os
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import TimeoutException, StaleElementReferenceException, NoSuchElementException
+from tqdm import tqdm
 
 
 def start_new_profile(profile_id):
@@ -20,37 +21,12 @@ def start_new_profile(profile_id):
         exit()
 
     port = str(response_json['automation']['port'])
-    chrome_driver_path = Service(r'C:\Users\PC\Projects\instagram_production\chromedriver.exe')
+    chrome_driver_path = Service('/Users/a111/Projects/instagram_production/chromedriver')
     options = webdriver.ChromeOptions()
     options.debugger_address = f'127.0.0.1:{port}'
     bot = webdriver.Chrome(service=chrome_driver_path, options=options)
     bot.set_window_size(375, 812)  # Розмір iPhone X
     return bot
-
-
-def save_credentials(username, password):
-    with open("credentials.txt", "w") as file:
-        file.write(f"{username}\n{password}")
-
-
-def load_credentials():
-    if not os.path.exists("credentials.txt"):
-        return None
-
-    with open("credentials.txt", "r") as file:
-        lines = file.readlines()
-        if len(lines) >= 2:
-            return lines[0].strip(), lines[1].strip()
-
-    return None
-
-
-def prompt_credentials():
-    username = input("Enter your Instagram username: ")
-    password = input("Enter your Instagram password: ")
-    save_credentials(username, password)
-    return username, password
-
 
 def read_usernames_from_file(file_path):
     with open(file_path, "r") as file:
@@ -66,40 +42,65 @@ def remove_username_from_file(username, file_path):
             if line.strip() != username:
                 file.write(line)
 
+def check_next_button(driver):
+    try:
+        next_button = driver.find_element(By.CSS_SELECTOR, "svg[aria-label='Далі']")
+        print("Кнопка 'Далі' найдена.")
+        return next_button
+    except NoSuchElementException:
+        print("Кнопка 'Далі' не найдена.")
+        return None
+
+
 def like_stories(usernames):
-    profile_id = "162085248"  # Замените на ваш ID профиля
+    profile_id = "162085248"
     driver = start_new_profile(profile_id)
 
-    for follower in usernames:
+    for follower in tqdm(usernames, desc="Прогресс"):
         story_url = f"https://www.instagram.com/stories/{follower}"
         driver.get(story_url)
+        print(f"Переход к истории пользователя {follower}.")
         WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, 'body')))
 
         try:
-            # Нажатие на первую историю пользователя
             view_story_button = WebDriverWait(driver, 5).until(
                 EC.element_to_be_clickable((By.XPATH, '//*[contains(@id, "mount_")]/div/div/div[2]/div/div/div/div[1]/div[1]/section/div[1]/div/div/div/div[2]/div/div[3]/div'))
             )
             view_story_button.click()
-            print("[TRUE] User -> " + follower + " has story up.")
+            print(f"[TRUE] User -> {follower} has story up.")
 
-            # Переход по историям и лайк на последней
-            while True:
+            # Ставим лайк на первую историю
+            try:
+                like_button = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "svg[aria-label='Подобається']"))
+                )
+                driver.execute_script("arguments[0].scrollIntoView(true);", like_button)
+                time.sleep(1.5)
+                actions = ActionChains(driver)
+                actions.move_to_element(like_button).click().perform()
+                print(f"Лайк поставлен на первой истории пользователя {follower}.")
+            except Exception as e:
+                print(f"[ERROR] Не удалось поставить лайк на первой истории пользователя {follower}: {e}")
+
+            # Пролистываем остальные истории
+            while check_next_button(driver):
                 try:
-                    next_button = WebDriverWait(driver, 2).until(
-                        EC.element_to_be_clickable((By.XPATH, "//div[@role='button'][descendant::svg[@aria-label='Далі']]"))
+                    next_button = WebDriverWait(driver, 1).until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "svg[aria-label='Далі']"))
                     )
                     next_button.click()
-                except TimeoutException:
-                    like_button = WebDriverWait(driver, 2).until(
-                        EC.element_to_be_clickable((By.XPATH, '//div[@role="button"][descendant::svg[@aria-label="Подобається"]]'))
-                    )
-                    like_button.click()
-                    print("Лайк поставлен на последней истории.")
-                    break
+                    print("Переход к следующей истории.")
+                except StaleElementReferenceException:
+                    next_button = check_next_button(driver)
+                    if next_button:
+                        time.sleep(1)
+                        next_button.click()
+                    else:
+                        print("Не удалось найти кнопку 'Далі' после обработки исключения.")
+                time.sleep(0.5)
 
         except TimeoutException:
-            print("[FALSE] User -> " + follower + " has no story up.")
+            print(f"[FALSE] User -> {follower} has no story up.")
 
     driver.quit()
 
