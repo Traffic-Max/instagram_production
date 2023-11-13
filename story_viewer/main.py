@@ -21,7 +21,7 @@ def start_new_profile(profile_id):
         exit()
 
     port = str(response_json['automation']['port'])
-    chrome_driver_path = Service('/Users/a111/Projects/instagram_production/chromedriver')
+    chrome_driver_path = Service(r'C:\Users\PC\Projects\instagram_production\chromedriver-win64\chromedriver.exe')
     options = webdriver.ChromeOptions()
     options.debugger_address = f'127.0.0.1:{port}'
     bot = webdriver.Chrome(service=chrome_driver_path, options=options)

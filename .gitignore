@@ -1,0 +1,24 @@
+# Игнорирование папки с виртуальной средой
+instavenv/
+
+# Игнорирование драйвера ChromeDriver
+chromedriver-win64/
+chromedriver/
+
+# Игнорирование конкретных файлов ChromeDriver (если они находятся в корневой папке)
+chromedriver.exe
+chromedriver
+
+# Стандартные файлы и папки Python, которые часто исключаются
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+db.sqlite3
+env/
+venv/
+.idea/
+*.swp
+*~
+.DS_Store
